@@ -67,6 +67,48 @@ body {
   z-index: 1;
 }
 
+.google-gis-wrap {
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.google-gis-placeholder {
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--list-bg);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.google-gis-slot {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  transition: opacity 0.15s ease;
+}
+
+.google-gis-slot.is-busy {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.signing-in-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
 .google-button {
   width: 100%;
   height: 46px;

@@ -24,6 +24,7 @@ cp .env.example .env
 ```dotenv
 VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 ADMIN_PASSWORD=your-admin-password
 ADMIN_STATS_TOKEN=your-random-256-bit-hex-token
 ```
