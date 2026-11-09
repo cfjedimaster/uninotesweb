@@ -1,0 +1,17 @@
+# Dependencies & build output
+node_modules/
+dist/
+
+# Environment variables & secrets (keep only .env.example)
+.env
+.env.*
+*.local
+!.env.example
+*.pem
+*.key
+
+# Tooling & platform caches
+.netlify/
+.vercel/
+.supabase/
+.DS_Store

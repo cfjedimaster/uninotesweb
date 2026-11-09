@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      try {
+        const saved = localStorage.getItem('uninote-theme');
+        if (saved === 'light' || saved === 'dark') {
+          document.querySelector('meta[name="color-scheme"]').content = saved;
+          document.documentElement.dataset.theme = saved;
+        }
+      } catch {}
+    </script>
+    <meta name="theme-color" content="#f3eaff" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Uninote — Sparkly, distraction-free notes</title>
+  </head>
+  <body>
+    <div class="marketing-shell" x-data="marketingPage" x-cloak x-show="ready">
+      <header class="marketing-nav">
+        <a href="/" class="brand">
+          <span class="brand-mark" aria-hidden="true">✦</span>
+          <span>Uninote</span>
+        </a>
+        <div class="nav-actions">
+          <div class="theme-switch" role="group" aria-label="Theme">
+            <button type="button" class="sun" :class="{ 'selected-theme': theme === 'light' }"
+              :aria-pressed="theme === 'light'" aria-label="Light theme" title="Light theme"
+              @click="setTheme('light')">☼</button>
+            <button type="button" class="moon" :class="{ 'selected-theme': theme === 'dark' }"
+              :aria-pressed="theme === 'dark'" aria-label="Dark theme" title="Dark theme"
+              @click="setTheme('dark')">☾</button>
+          </div>
+          <a href="/login" class="nav-login">Log in</a>
+          <a href="/login" class="cta-primary cta-compact">Get started</a>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <span class="hero-badge">
+            <span aria-hidden="true">🦄</span>
+            <span>Calm cloud notes, zero clutter</span>
+          </span>
+          <h1>
+            Your thoughts, organized with a
+            <span class="hero-gradient-text">little sparkle.</span>
+          </h1>
+          <p>
+            Uninote brings the fast, distraction-free three-pane notebook experience to the web—synced instantly across your devices and locked down to your account alone.
+          </p>
+          <div class="hero-actions">
+            <a href="/login" class="cta-primary">Log in &amp; start writing →</a>
+            <a href="#features" class="cta-secondary">See features</a>
+          </div>
+
+          <div class="preview-window" aria-hidden="true">
+            <div class="preview-grid">
+              <div class="preview-sidebar">
+                <div class="brand">
+                  <span class="brand-mark">✦</span>
+                  <span>Uninote</span>
+                </div>
+                <div class="preview-label">Notebooks</div>
+                <div class="preview-nb active">
+                  <span class="dot pink"></span>
+                  <span>Personal</span>
+                  <span>4</span>
+                </div>
+                <div class="preview-nb">
+                  <span class="dot purple"></span>
+                  <span>Project Ideas</span>
+                  <span>7</span>
+                </div>
+                <div class="preview-nb">
+                  <span class="dot mint"></span>
+                  <span>Reading Notes</span>
+                  <span>3</span>
+                </div>
+              </div>
+              <div class="preview-list">
+                <div class="preview-list-title">Personal</div>
+                <div class="preview-card active">
+                  <h3>Weekend trip packing list</h3>
+                  <p>Camera, charger, rain jacket, national park pass, trail snacks…</p>
+                </div>
+                <div class="preview-card">
+                  <h3>Coffee roast notes</h3>
+                  <p>washed Ethiopian beans — 18g in, 36g out in 28 seconds.</p>
+                </div>
+                <div class="preview-card">
+                  <h3>Gift ideas</h3>
+                  <p>Fountain pen ink sampler, hardcover sci-fi anthology…</p>
+                </div>
+              </div>
+              <div class="preview-editor">
+                <div class="rainbow">
+                  <i></i><i></i><i></i><i></i><i></i>
+                </div>
+                <div class="preview-meta">◷ Last edited Just now · ✓ Saved</div>
+                <h2>Weekend trip packing list</h2>
+                <p>Everything needed before heading out Friday morning:</p>
+                <p>• Camera + spare battery<br />• Rain shell &amp; extra socks<br />• Thermos + pour-over kit<br />• Offline trail maps downloaded</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="features" class="features" aria-label="Features">
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">✦</div>
+            <h3>Color-coded notebooks</h3>
+            <p>Start right away with your Personal notebook, or spin up new notebooks with a keystroke to keep work and life tidy.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">☁️</div>
+            <h3>Instant cloud autosave</h3>
+            <p>Every keystroke saves automatically in the background, with smart 6-second undo protection whenever you delete a note.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🔒</div>
+            <h3>Private by design</h3>
+            <p>Sign in with Google and rest easy: database-level Row Level Security ensures only you can view, edit, or delete your notes.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">☾</div>
+            <h3>Light &amp; dark themes</h3>
+            <p>Pastel daylight or deep midnight—Uninote adapts to your OS preference automatically or lets you flip themes anytime.</p>
+          </article>
+        </section>
+      </main>
+
+      <footer class="marketing-footer">
+        <p>Ready to jot something down? <a href="/login">Log in to Uninote</a>.</p>
+      </footer>
+    </div>
+    <script type="module" src="/src/marketing.js"></script>
+  </body>
+</html>

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      try {
+        const saved = localStorage.getItem('uninote-theme');
+        if (saved === 'light' || saved === 'dark') {
+          document.querySelector('meta[name="color-scheme"]').content = saved;
+          document.documentElement.dataset.theme = saved;
+        }
+      } catch {}
+    </script>
+    <meta name="theme-color" content="#f3eaff" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Uninote</title>
+  </head>
+  <body>
+    <main class="app-window" x-data="uninote" x-cloak x-show="authReady"
+      @keydown.window="handleGlobalKeydown($event)"
+      @beforeunload.window="onBeforeUnload">
+      <div class="workspace">
+        <aside class="sidebar">
+          <div class="brand">
+            <span class="brand-mark" aria-hidden="true">✦</span>
+            <span>Uninote</span>
+            <div class="theme-switch" role="group" aria-label="Theme">
+              <button type="button" class="sun" :class="{ 'selected-theme': theme === 'light' }"
+                :aria-pressed="theme === 'light'" aria-label="Light theme" title="Light theme"
+                @click="setTheme('light')">☼</button>
+              <button type="button" class="moon" :class="{ 'selected-theme': theme === 'dark' }"
+                :aria-pressed="theme === 'dark'" aria-label="Dark theme" title="Dark theme"
+                @click="setTheme('dark')">☾</button>
+            </div>
+          </div>
+
+          <div class="sidebar-heading">
+            <span>Notebooks</span>
+          </div>
+
+          <nav class="notebook-list" aria-label="Notebooks">
+            <template x-for="(notebook, index) in notebooks" :key="notebook.id">
+              <div class="notebook-row">
+                <button type="button" class="notebook" :class="{ selected: index === selectedNotebook }"
+                  :aria-pressed="index === selectedNotebook" @click="switchNotebook(index)">
+                  <span class="dot" :class="['pink', 'purple', 'blue', 'yellow', 'mint'][index % 5]"></span>
+                  <span class="notebook-name" x-text="notebook.name"></span>
+                  <span class="count" x-text="notebook.noteCount"></span>
+                </button>
+                <button type="button" class="notebook-delete icon-button" aria-label="Delete notebook"
+                  title="Delete notebook" @click="openDeleteNotebookDialog(index)">×</button>
+              </div>
+            </template>
+          </nav>
+
+          <div class="sidebar-bottom">
+            <button type="button" class="new-notebook" aria-label="New notebook" title="New notebook"
+              @click="openNewNotebookModal">
+              <span>＋</span>New notebook
+            </button>
+            <div class="account-bar" x-show="user">
+              <div class="account-info" :title="userEmail">
+                <span class="account-avatar" aria-hidden="true" x-text="userInitial"></span>
+                <span class="account-email" x-text="userDisplayName"></span>
+              </div>
+              <button type="button" class="logout-button" @click="logout" :disabled="loggingOut"
+                aria-label="Log out" title="Log out">
+                <span x-text="loggingOut ? '…' : 'Log out'"></span>
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <section class="notes-panel" aria-label="Notes">
+          <div class="notes-heading">
+            <div>
+              <h1 x-text="notebooks[selectedNotebook]?.name ?? 'Notes'"></h1>
+              <p x-text="notes.length + (notes.length === 1 ? ' note' : ' notes')"></p>
+            </div>
+            <button type="button" class="add-note" aria-label="New note" title="New note"
+              @click="createNote" :disabled="selectedNotebook === null">+</button>
+          </div>
+
+          <div class="note-list" role="listbox" aria-label="Notes" tabindex="0"
+            @keydown.up.prevent="moveSelection(-1)" @keydown.down.prevent="moveSelection(1)">
+            <template x-for="note in notes" :key="note.id">
+              <article class="note-card" role="option" :aria-selected="note.id === selectedNoteId"
+                :class="{ 'selected-note': note.id === selectedNoteId }" tabindex="0"
+                @click="selectNote(note)" @keydown.enter.prevent="selectNote(note)">
+                <h2 :class="{ 'untitled-note': !note.title.trim() }"
+                  x-text="note.title.trim() || 'Untitled note'"></h2>
+                <p x-text="note.content"></p>
+              </article>
+            </template>
+          </div>
+        </section>
+
+        <section class="editor" aria-label="Note editor">
+          <template x-if="selectedNote">
+            <div class="editor-active">
+              <div class="rainbow" aria-hidden="true">
+                <i></i>
+                <i></i>
+                <i></i>
+                <i></i>
+                <i></i>
+              </div>
+              <div class="editor-toolbar">
+                <span class="last-edited">
+                  <span class="clock-icon" aria-hidden="true">◷</span>
+                  <span>Last edited <span x-text="formatLastEdited(selectedNote.updatedAt)"></span></span>
+                  <span class="saved-indicator" x-show="savedPulse" x-transition.opacity>✓ Saved</span>
+                </span>
+                <div class="editor-actions">
+                  <button class="copy-note" type="button" aria-label="Copy note" title="Copy note"
+                    @click="copySelectedNote">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="8" y="8" width="12" height="12" rx="2"></rect>
+                      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path>
+                    </svg>
+                  </button>
+                  <button class="delete-note" type="button" aria-label="Delete note" title="Delete note"
+                    @click="deleteSelectedNote">♜</button>
+                </div>
+              </div>
+              <div class="save-error" role="alert" x-show="saveError" x-text="saveError"></div>
+              <div class="note-content">
+                <input class="note-title" x-ref="noteTitle" type="text" placeholder="Untitled note"
+                  aria-label="Note title" x-model="selectedNote.title"
+                  @input="scheduleSave(selectedNote)" @blur="flushCurrent"
+                  @keydown.enter.prevent="$refs.noteBody.focus()">
+                <textarea class="note-body" x-ref="noteBody" placeholder="Start writing…"
+                  aria-label="Note body" x-model="selectedNote.content"
+                  @input="scheduleSave(selectedNote)" @blur="flushCurrent"></textarea>
+              </div>
+            </div>
+          </template>
+          <template x-if="!selectedNote">
+            <div class="empty-state">
+              <span class="empty-unicorn" aria-hidden="true">🦄</span>
+              <h2 x-text="selectedNotebook === null ? 'No notebook selected' : 'No notes yet'"></h2>
+              <p x-show="selectedNotebook !== null">Start with a little sparkle.</p>
+              <button type="button" class="empty-action" x-show="selectedNotebook !== null"
+                @click="createNote">Write your first note</button>
+            </div>
+          </template>
+        </section>
+      </div>
+
+      <div class="toast" role="status" aria-live="polite" x-show="toastVisible" x-transition.opacity>
+        <span>Note deleted.</span>
+        <button type="button" @click="undoDelete">Undo</button>
+      </div>
+
+      <dialog class="notebook-dialog" closedby="any" aria-labelledby="new-notebook-title" x-ref="newNotebookDialog">
+        <form class="notebook-form" @submit.prevent="saveNewNotebook">
+          <h2 id="new-notebook-title">New notebook</h2>
+          <label for="notebook-name">Notebook name</label>
+          <input id="notebook-name" x-ref="notebookName" type="text" autofocus autocomplete="off">
+          <p class="notebook-error" role="alert" x-show="notebookError" x-text="notebookError"></p>
+          <div class="notebook-dialog-actions">
+            <button class="notebook-cancel" type="button" @click="$refs.newNotebookDialog.close()">Cancel</button>
+            <button class="notebook-save" type="submit">Save</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog class="notebook-dialog delete-notebook-dialog" aria-labelledby="delete-notebook-title" x-ref="deleteNotebookDialog">
+        <div class="notebook-form">
+          <h2 id="delete-notebook-title">Delete notebook?</h2>
+          <p class="delete-notebook-message" x-text="deleteNotebookMessage"></p>
+          <p class="notebook-error" role="alert" x-show="notebookError" x-text="notebookError"></p>
+          <div class="notebook-dialog-actions">
+            <button class="notebook-cancel" type="button" autofocus @click="$refs.deleteNotebookDialog.close()">Cancel</button>
+            <button class="notebook-save danger-button" type="button" @click="confirmDeleteNotebook">Delete</button>
+          </div>
+        </div>
+      </dialog>
+    </main>
+    <script type="module" src="/src/notes.js"></script>
+  </body>
+</html>
