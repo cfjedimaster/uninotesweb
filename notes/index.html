@@ -2,18 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f3eaff" />
     <script>
       try {
         const saved = localStorage.getItem('uninote-theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const resolved = saved === 'light' || saved === 'dark' ? saved : (prefersDark ? 'dark' : 'light');
         if (saved === 'light' || saved === 'dark') {
           document.querySelector('meta[name="color-scheme"]').content = saved;
           document.documentElement.dataset.theme = saved;
         }
+        document.querySelector('meta[name="theme-color"]').content = resolved === 'dark' ? '#21183a' : '#f3eaff';
       } catch {}
     </script>
-    <meta name="theme-color" content="#f3eaff" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Uninote</title>
   </head>
@@ -21,83 +24,114 @@
     <main class="app-window" x-data="uninote" x-cloak x-show="authReady"
       @keydown.window="handleGlobalKeydown($event)"
       @beforeunload.window="onBeforeUnload">
-      <div class="workspace">
-        <aside class="sidebar">
-          <div class="brand">
-            <span class="brand-mark" aria-hidden="true">✦</span>
-            <span>Uninote</span>
-            <div class="theme-switch" role="group" aria-label="Theme">
-              <button type="button" class="sun" :class="{ 'selected-theme': theme === 'light' }"
-                :aria-pressed="theme === 'light'" aria-label="Light theme" title="Light theme"
-                @click="setTheme('light')">☼</button>
-              <button type="button" class="moon" :class="{ 'selected-theme': theme === 'dark' }"
-                :aria-pressed="theme === 'dark'" aria-label="Dark theme" title="Dark theme"
-                @click="setTheme('dark')">☾</button>
-            </div>
-          </div>
+      <div class="workspace" :data-mobile-view="mobileView">
+        <div class="sidebar-drawer" :class="{ 'is-open': drawerVisible }" x-ref="sidebarDrawer">
+          <div class="drawer-backdrop" aria-hidden="true"></div>
+          <div class="sidebar-scroller" x-ref="sidebarScroller" @click="handleDrawerBackdropClick($event)">
+            <aside class="sidebar" id="notebooks-drawer" x-ref="sidebarSheet" tabindex="-1">
+              <div class="brand">
+                <span class="brand-mark" aria-hidden="true">✦</span>
+                <span class="brand-name">Uninote</span>
+                <div class="theme-switch" role="group" aria-label="Theme">
+                  <button type="button" class="sun" :class="{ 'selected-theme': theme === 'light' }"
+                    :aria-pressed="theme === 'light'" aria-label="Light theme" title="Light theme"
+                    @click="setTheme('light')">☼</button>
+                  <button type="button" class="moon" :class="{ 'selected-theme': theme === 'dark' }"
+                    :aria-pressed="theme === 'dark'" aria-label="Dark theme" title="Dark theme"
+                    @click="setTheme('dark')">☾</button>
+                </div>
+                <button type="button" class="drawer-close icon-button" aria-label="Close notebooks"
+                  title="Close notebooks" @click="closeDrawer">×</button>
+              </div>
 
-          <div class="sidebar-heading">
-            <span>Notebooks</span>
-          </div>
+              <div class="sidebar-heading">
+                <span>Notebooks</span>
+              </div>
 
-          <nav class="notebook-list" aria-label="Notebooks">
-            <template x-for="(notebook, index) in notebooks" :key="notebook.id">
-              <div class="notebook-row">
-                <button type="button" class="notebook" :class="{ selected: index === selectedNotebook }"
-                  :aria-pressed="index === selectedNotebook" @click="switchNotebook(index)">
-                  <span class="dot" :class="['pink', 'purple', 'blue', 'yellow', 'mint'][index % 5]"></span>
-                  <span class="notebook-name" x-text="notebook.name"></span>
-                  <span class="count" x-text="notebook.noteCount"></span>
+              <nav class="notebook-list" aria-label="Notebooks">
+                <template x-for="(notebook, index) in notebooks" :key="notebook.id">
+                  <div class="notebook-row">
+                    <button type="button" class="notebook" :class="{ selected: index === selectedNotebook }"
+                      :aria-pressed="index === selectedNotebook" @click="switchNotebook(index)">
+                      <span class="dot" :class="['pink', 'purple', 'blue', 'yellow', 'mint'][index % 5]"></span>
+                      <span class="notebook-name" x-text="notebook.name"></span>
+                      <span class="count" x-text="notebook.noteCount"></span>
+                    </button>
+                    <button type="button" class="notebook-delete icon-button"
+                      :aria-label="'Delete ' + notebook.name" title="Delete notebook"
+                      @click="openDeleteNotebookDialog(index)">×</button>
+                  </div>
+                </template>
+              </nav>
+
+              <div class="sidebar-bottom">
+                <button type="button" class="new-notebook" aria-label="New notebook" title="New notebook"
+                  @click="openNewNotebookModal">
+                  <span>＋</span>New notebook
                 </button>
-                <button type="button" class="notebook-delete icon-button" aria-label="Delete notebook"
-                  title="Delete notebook" @click="openDeleteNotebookDialog(index)">×</button>
+                <div class="account-bar" x-show="user">
+                  <div class="account-info" :title="userEmail">
+                    <span class="account-avatar" aria-hidden="true" x-text="userInitial"></span>
+                    <span class="account-email" x-text="userDisplayName"></span>
+                  </div>
+                  <button type="button" class="logout-button" @click="logout" :disabled="loggingOut"
+                    aria-label="Log out" title="Log out">
+                    <span x-text="loggingOut ? '…' : 'Log out'"></span>
+                  </button>
+                </div>
               </div>
-            </template>
-          </nav>
-
-          <div class="sidebar-bottom">
-            <button type="button" class="new-notebook" aria-label="New notebook" title="New notebook"
-              @click="openNewNotebookModal">
-              <span>＋</span>New notebook
-            </button>
-            <div class="account-bar" x-show="user">
-              <div class="account-info" :title="userEmail">
-                <span class="account-avatar" aria-hidden="true" x-text="userInitial"></span>
-                <span class="account-email" x-text="userDisplayName"></span>
-              </div>
-              <button type="button" class="logout-button" @click="logout" :disabled="loggingOut"
-                aria-label="Log out" title="Log out">
-                <span x-text="loggingOut ? '…' : 'Log out'"></span>
-              </button>
-            </div>
+            </aside>
           </div>
-        </aside>
+        </div>
 
-        <section class="notes-panel" aria-label="Notes">
+        <section class="notes-panel" x-ref="notesPanel" aria-label="Notes">
           <div class="notes-heading">
-            <div>
-              <h1 x-text="notebooks[selectedNotebook]?.name ?? 'Notes'"></h1>
-              <p x-text="notes.length + (notes.length === 1 ? ' note' : ' notes')"></p>
+            <div class="notes-heading-lead">
+              <button type="button" class="drawer-toggle" x-ref="drawerToggle"
+                aria-label="Notebooks" title="Notebooks" aria-controls="notebooks-drawer"
+                :aria-expanded="drawerOpen ? 'true' : 'false'" @click="openDrawer">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round">
+                  <path d="M4 7h16M4 12h16M4 17h16"></path>
+                </svg>
+              </button>
+              <div class="notes-heading-text">
+                <h1 x-text="notebooks[selectedNotebook]?.name ?? 'Notes'"></h1>
+                <p x-text="notes.length + (notes.length === 1 ? ' note' : ' notes')"></p>
+              </div>
             </div>
             <button type="button" class="add-note" aria-label="New note" title="New note"
               @click="createNote" :disabled="selectedNotebook === null">+</button>
           </div>
 
           <div class="note-list" role="listbox" aria-label="Notes" tabindex="0"
+            x-show="notes.length > 0"
             @keydown.up.prevent="moveSelection(-1)" @keydown.down.prevent="moveSelection(1)">
             <template x-for="note in notes" :key="note.id">
               <article class="note-card" role="option" :aria-selected="note.id === selectedNoteId"
                 :class="{ 'selected-note': note.id === selectedNoteId }" tabindex="0"
-                @click="selectNote(note)" @keydown.enter.prevent="selectNote(note)">
+                @click="selectNote(note, { openEditor: true })"
+                @keydown.enter.prevent="selectNote(note, { openEditor: true })">
                 <h2 :class="{ 'untitled-note': !note.title.trim() }"
                   x-text="note.title.trim() || 'Untitled note'"></h2>
                 <p x-text="note.content"></p>
               </article>
             </template>
           </div>
+
+          <div class="empty-state mobile-empty-state" x-show="notes.length === 0">
+            <span class="empty-unicorn" aria-hidden="true">🦄</span>
+            <h2 x-text="selectedNotebook === null ? 'No notebook selected' : 'No notes yet'"></h2>
+            <p x-show="selectedNotebook !== null">Start with a little sparkle.</p>
+            <p x-show="selectedNotebook === null">Create a notebook to start jotting things down.</p>
+            <button type="button" class="empty-action" x-show="selectedNotebook !== null"
+              @click="createNote">Write your first note</button>
+            <button type="button" class="empty-action" x-show="selectedNotebook === null"
+              @click="openNewNotebookModal">Create a notebook</button>
+          </div>
         </section>
 
-        <section class="editor" aria-label="Note editor">
+        <section class="editor" x-ref="editorPanel" aria-label="Note editor">
           <template x-if="selectedNote">
             <div class="editor-active">
               <div class="rainbow" aria-hidden="true">
@@ -108,6 +142,10 @@
                 <i></i>
               </div>
               <div class="editor-toolbar">
+                <button type="button" class="mobile-back" @click="backToList($event)">
+                  <span aria-hidden="true">←</span>
+                  <span><span class="visually-hidden">Back to </span>Notes</span>
+                </button>
                 <span class="last-edited">
                   <span class="clock-icon" aria-hidden="true">◷</span>
                   <span>Last edited <span x-text="formatLastEdited(selectedNote.updatedAt)"></span></span>
@@ -143,8 +181,11 @@
               <span class="empty-unicorn" aria-hidden="true">🦄</span>
               <h2 x-text="selectedNotebook === null ? 'No notebook selected' : 'No notes yet'"></h2>
               <p x-show="selectedNotebook !== null">Start with a little sparkle.</p>
+              <p x-show="selectedNotebook === null">Create a notebook to start jotting things down.</p>
               <button type="button" class="empty-action" x-show="selectedNotebook !== null"
                 @click="createNote">Write your first note</button>
+              <button type="button" class="empty-action" x-show="selectedNotebook === null"
+                @click="openNewNotebookModal">Create a notebook</button>
             </div>
           </template>
         </section>

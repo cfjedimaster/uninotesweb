@@ -61,6 +61,13 @@ Alpine.data('uninote', () => ({
   pendingDelete: null,
   deleteNotebookIndex: null,
   deleteNotebookMessage: '',
+  mobileView: 'list',
+  isCompactLayout: window.matchMedia('(max-width: 960px)').matches,
+  isMobileLayout: window.matchMedia('(max-width: 700px)').matches,
+  drawerVisible: false,
+  drawerOpen: false,
+  drawerHasOpened: false,
+  drawerObserver: null,
 
   get selectedNote() {
     return this.notes.find(note => note.id === this.selectedNoteId) ?? null
@@ -115,6 +122,7 @@ Alpine.data('uninote', () => ({
 
     this.user = data.session.user
     this.authReady = true
+    this.$nextTick(() => this.setupResponsiveLayout())
 
     supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
@@ -158,8 +166,148 @@ Alpine.data('uninote', () => ({
     window.location.replace('/')
   },
 
+  setupResponsiveLayout() {
+    const compactQuery = window.matchMedia('(max-width: 960px)')
+    const mobileQuery = window.matchMedia('(max-width: 700px)')
+
+    this.isCompactLayout = compactQuery.matches
+    this.isMobileLayout = mobileQuery.matches
+
+    compactQuery.addEventListener('change', event => {
+      this.isCompactLayout = event.matches
+      if (!event.matches) {
+        this.resetDrawerState()
+      }
+    })
+
+    mobileQuery.addEventListener('change', event => {
+      this.isMobileLayout = event.matches
+      if (event.matches && !this.selectedNote) {
+        this.mobileView = 'list'
+      }
+    })
+
+    const drawer = this.$refs.sidebarDrawer
+    const scroller = this.$refs.sidebarScroller
+    const sheet = this.$refs.sidebarSheet
+    if (!drawer || !scroller || !sheet) return
+
+    const visibleThreshold = Math.min(0.02, 1 / Math.max(window.innerWidth, 320))
+    this.drawerObserver = new IntersectionObserver(
+      entries => {
+        if (!this.drawerVisible || !this.isCompactLayout) return
+        const entry = entries.at(-1)
+        if (!entry) return
+        if (entry.intersectionRatio >= visibleThreshold) {
+          this.drawerHasOpened = true
+        }
+        if (entry.intersectionRatio >= 0.99) {
+          this.onDrawerOpened()
+        } else if (this.drawerHasOpened && entry.intersectionRatio < visibleThreshold) {
+          this.onDrawerClosed()
+        }
+      },
+      { root: drawer, threshold: [visibleThreshold, 0.99, 1] }
+    )
+    this.drawerObserver.observe(sheet)
+
+    if (!CSS.supports('animation-timeline: scroll()')) {
+      scroller.addEventListener('scroll', () => {
+        if (!this.drawerVisible || !sheet.offsetWidth) return
+        const ratio = Math.max(0, Math.min(1, 1 - scroller.scrollLeft / sheet.offsetWidth))
+        drawer.style.setProperty('--drawer-backdrop', String(ratio))
+      }, { passive: true })
+    }
+  },
+
+  setWorkspaceInert(isInert) {
+    if (this.$refs.notesPanel) this.$refs.notesPanel.inert = isInert
+    if (this.$refs.editorPanel) this.$refs.editorPanel.inert = isInert
+  },
+
+  async openDrawer() {
+    if (!this.isCompactLayout || this.drawerVisible) return
+    const drawer = this.$refs.sidebarDrawer
+    const scroller = this.$refs.sidebarScroller
+    if (!drawer || !scroller) return
+
+    this.drawerHasOpened = false
+    this.drawerVisible = true
+
+    await this.$nextTick()
+
+    if (!CSS.supports('scroll-initial-target', 'nearest') || scroller.scrollLeft === 0) {
+      if (!CSS.supports('animation-timeline: scroll()')) {
+        drawer.style.setProperty('--drawer-backdrop', '0')
+      }
+      scroller.scrollTo({ left: scroller.offsetWidth, behavior: 'instant' })
+      await new Promise(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      )
+    }
+
+    if (!this.drawerVisible) return
+    scroller.scrollTo({ left: 0, behavior: 'auto' })
+  },
+
+  closeDrawer() {
+    if (!this.drawerVisible) return
+    const scroller = this.$refs.sidebarScroller
+    if (!scroller || !this.isCompactLayout || !this.drawerHasOpened) {
+      this.onDrawerClosed()
+      return
+    }
+    scroller.scrollTo({ left: scroller.offsetWidth, behavior: 'auto' })
+  },
+
+  onDrawerOpened() {
+    if (!this.drawerVisible || !this.isCompactLayout) return
+    this.drawerOpen = true
+    this.setWorkspaceInert(true)
+    const anyModalOpen = this.$refs.newNotebookDialog?.open || this.$refs.deleteNotebookDialog?.open
+    if (!anyModalOpen && !this.$refs.sidebarDrawer?.contains(document.activeElement)) {
+      this.$refs.sidebarSheet?.focus({ preventScroll: true })
+    }
+  },
+
+  onDrawerClosed() {
+    const focusWasInDrawer = Boolean(this.$refs.sidebarDrawer?.contains(document.activeElement))
+    const anyModalOpen = Boolean(this.$refs.newNotebookDialog?.open || this.$refs.deleteNotebookDialog?.open)
+    this.resetDrawerState()
+    if (focusWasInDrawer && !anyModalOpen && this.isCompactLayout) {
+      this.$nextTick(() => {
+        this.$refs.drawerToggle?.focus({ preventScroll: true })
+      })
+    }
+  },
+
+  resetDrawerState() {
+    this.drawerVisible = false
+    this.drawerOpen = false
+    this.drawerHasOpened = false
+    this.setWorkspaceInert(false)
+    this.$refs.sidebarDrawer?.style.removeProperty('--drawer-backdrop')
+  },
+
+  handleDrawerBackdropClick(event) {
+    if (!this.isCompactLayout || !this.drawerVisible) return
+    if (!this.$refs.sidebarSheet?.contains(event.target)) {
+      this.closeDrawer()
+    }
+  },
+
   async switchNotebook(index) {
-    if (index === this.selectedNotebook) return
+    if (index === this.selectedNotebook) {
+      if (this.mobileView === 'editor') {
+        if (!await this.leaveCurrentNote()) return
+        if (!this.selectedNote) {
+          this.selectedNoteId = this.notes[0]?.id ?? null
+        }
+        this.mobileView = 'list'
+      }
+      this.closeDrawer()
+      return
+    }
     if (!await this.leaveCurrentNote()) return
     this.selectedNotebook = index
     this.notes = await getNotes(this.notebooks[index].id)
@@ -171,13 +319,36 @@ Alpine.data('uninote', () => ({
     })
     this.filterPendingDelete()
     this.selectedNoteId = this.notes[0]?.id ?? null
+    this.mobileView = 'list'
     this.syncNotebookCount(index)
+    this.closeDrawer()
   },
 
-  async selectNote(note) {
-    if (note.id === this.selectedNoteId) return
+  async selectNote(note, { openEditor = false } = {}) {
+    if (note.id === this.selectedNoteId) {
+      if (openEditor) this.mobileView = 'editor'
+      return
+    }
     if (!await this.leaveCurrentNote()) return
     this.selectedNoteId = note.id
+    if (openEditor) this.mobileView = 'editor'
+  },
+
+  async backToList(event) {
+    const viaKeyboard = event?.detail === 0
+    if (!await this.leaveCurrentNote()) return
+    if (!this.selectedNote) {
+      this.selectedNoteId = this.notes[0]?.id ?? null
+    }
+    this.mobileView = 'list'
+    if (viaKeyboard) {
+      this.$nextTick(() => {
+        const activeIndex = this.notes.findIndex(note => note.id === this.selectedNoteId)
+        const cards = this.$el.querySelectorAll('.note-card')
+        const target = (activeIndex >= 0 ? cards[activeIndex] : cards[0]) ?? this.$el.querySelector('.add-note')
+        target?.focus({ preventScroll: true })
+      })
+    }
   },
 
   async leaveCurrentNote() {
@@ -225,7 +396,9 @@ Alpine.data('uninote', () => ({
     }
     this.notes.unshift(note)
     this.selectedNoteId = note.id
+    this.mobileView = 'editor'
     this.syncNotebookCount(this.selectedNotebook)
+    this.closeDrawer()
     this.$nextTick(() => this.$refs.noteTitle?.focus())
   },
 
@@ -380,6 +553,7 @@ Alpine.data('uninote', () => ({
       this.notes = this.notes.filter(item => item.id !== note.id)
       this.selectedNoteId = this.notes[0]?.id ?? null
       this.syncNotebookCount(this.selectedNotebook)
+      if (this.isMobileLayout) this.mobileView = 'list'
       return
     }
     if (this.pendingDelete) await this.commitPendingDelete()
@@ -387,6 +561,7 @@ Alpine.data('uninote', () => ({
     if (index < 0) return
     this.notes.splice(index, 1)
     this.selectedNoteId = this.notes[Math.min(index, this.notes.length - 1)]?.id ?? null
+    if (this.isMobileLayout) this.mobileView = 'list'
     this.pendingDelete = {
       note,
       index,
@@ -509,6 +684,7 @@ Alpine.data('uninote', () => ({
         this.selectedNotebook = null
         this.notes = []
         this.selectedNoteId = null
+        this.mobileView = 'list'
         if (this.notebooks.length) {
           await this.switchNotebook(Math.min(index, this.notebooks.length - 1))
         }
@@ -522,6 +698,14 @@ Alpine.data('uninote', () => ({
   },
 
   handleGlobalKeydown(event) {
+    if (event.key === 'Escape') {
+      const anyModalOpen = this.$refs.newNotebookDialog?.open || this.$refs.deleteNotebookDialog?.open
+      if (!anyModalOpen && this.drawerVisible) {
+        event.preventDefault()
+        this.closeDrawer()
+      }
+      return
+    }
     if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'n') return
     event.preventDefault()
     if (event.shiftKey) this.openNewNotebookModal()

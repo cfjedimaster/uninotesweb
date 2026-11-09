@@ -8,6 +8,7 @@ body {
   position: relative;
   width: 100%;
   height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
   min-height: 0;
   overflow: hidden;
   border: 1px solid var(--window-border);
@@ -23,6 +24,19 @@ body {
   min-height: 0;
   display: grid;
   grid-template-columns: 240px 271px minmax(0, 1fr);
+}
+
+.sidebar-drawer,
+.sidebar-scroller {
+  display: contents;
+}
+
+.drawer-backdrop,
+.drawer-close,
+.drawer-toggle,
+.mobile-back,
+.mobile-empty-state {
+  display: none;
 }
 
 .sidebar,
@@ -41,8 +55,19 @@ body {
   z-index: 2;
 }
 
+.sidebar:focus-visible {
+  outline: none;
+}
+
 .sidebar .brand {
   margin: 0 7px 8px;
+}
+
+.sidebar .brand-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar .brand .theme-switch {
@@ -75,6 +100,7 @@ body {
   display: grid;
   gap: 3px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   min-height: 0;
 }
 
@@ -243,7 +269,7 @@ dialog::backdrop {
 }
 
 .notebook-dialog {
-  width: min(400px, calc(100vw - 32px));
+  width: min(400px, calc(100dvw - 32px));
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -286,6 +312,7 @@ dialog::backdrop {
   color: var(--text);
   background: var(--list-bg);
   font: inherit;
+  font-size: 16px;
 }
 
 .notebook-form input:focus {
@@ -327,25 +354,42 @@ dialog::backdrop {
 }
 
 .notes-panel {
+  display: flex;
+  flex-direction: column;
   background: var(--list-bg);
   border-right: 1px solid var(--line);
 }
 
 .notes-heading {
-  height: 71px;
+  min-height: 71px;
   padding: 18px 17px 11px;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 10px;
+}
+
+.notes-heading-lead {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.notes-heading-text {
+  min-width: 0;
 }
 
 .notes-heading h1 {
   margin: 0;
+  overflow: hidden;
   color: var(--text);
   font-size: 18px;
   line-height: 22px;
   font-weight: 900;
   letter-spacing: -0.45px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notes-heading p {
@@ -358,17 +402,21 @@ dialog::backdrop {
 .add-note {
   width: 33px;
   height: 33px;
-  margin-top: 3px;
+  flex-shrink: 0;
   border-radius: 11px;
+  display: grid;
+  place-items: center;
   font-size: 23px;
   font-weight: 400;
   line-height: 1;
 }
 
 .note-list {
-  height: calc(100% - 71px);
+  flex: 1;
+  min-height: 0;
   padding: 0 10px 12px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .note-list:focus-visible,
@@ -441,6 +489,7 @@ dialog::backdrop {
   line-height: 16px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .editor {
@@ -535,7 +584,10 @@ dialog::backdrop {
   position: relative;
   z-index: 1;
   padding: 8px 47px 55px;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
+  overscroll-behavior: contain;
   color: var(--text);
 }
 
@@ -551,6 +603,7 @@ dialog::backdrop {
 }
 
 .note-title {
+  flex-shrink: 0;
   margin: 0 0 17px;
   padding: 0;
   font-size: 32px;
@@ -566,12 +619,19 @@ dialog::backdrop {
 }
 
 .note-body {
-  min-height: 55vh;
+  flex: 1 0 auto;
+  min-height: 45dvh;
   padding: 0;
   resize: none;
   font-size: 15px;
   line-height: 1.75;
   font-weight: 500;
+}
+
+@supports (field-sizing: content) {
+  .note-body {
+    field-sizing: content;
+  }
 }
 
 .empty-state {
@@ -612,9 +672,11 @@ dialog::backdrop {
 
 .toast {
   position: absolute;
-  z-index: 5;
+  z-index: 25;
   left: 50%;
   bottom: 22px;
+  width: max-content;
+  max-width: calc(100% - 32px);
   padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -649,6 +711,19 @@ dialog::backdrop {
   box-shadow: none;
 }
 
+@property --drawer-backdrop {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+@supports (animation-timeline: scroll()) {
+  @keyframes fade-drawer-backdrop {
+    0% { --drawer-backdrop: 1; }
+    100% { --drawer-backdrop: 0; }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .notebook,
   .note-card {
@@ -657,19 +732,256 @@ dialog::backdrop {
   }
 }
 
-@media (max-width: 900px) {
+@media (hover: none), (pointer: coarse) {
+  .notebook {
+    height: auto;
+    min-height: 44px;
+    padding-right: 44px;
+    font-size: 14px;
+  }
+
+  .notebook-delete {
+    width: 34px;
+    height: 34px;
+    top: 5px;
+    right: 5px;
+    opacity: 0.75;
+  }
+
+  .new-notebook {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .logout-button {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  .theme-switch {
+    height: 34px;
+    padding: 3px;
+  }
+
+  .theme-switch button {
+    width: 28px;
+  }
+
+  .add-note,
+  .copy-note,
+  .delete-note {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .delete-note {
+    font-size: 16px;
+  }
+
+  .note-body {
+    font-size: 16px;
+  }
+
+  .notebook-form input {
+    min-height: 46px;
+  }
+
+  .notebook-dialog-actions button {
+    min-height: 42px;
+    padding: 0 16px;
+    font-size: 13.5px;
+  }
+}
+
+@media (max-width: 960px) {
   body {
     padding: 16px;
   }
 
   .app-window {
     height: calc(100vh - 32px);
+    height: calc(100dvh - 32px);
     min-height: 0;
   }
 
   .workspace {
-    grid-template-columns: 212px 235px minmax(310px, 1fr);
-    overflow-x: auto;
+    grid-template-columns: 265px minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .drawer-toggle {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: var(--sidebar-bg);
+    color: var(--text);
+  }
+
+  .drawer-toggle svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+  }
+
+  .sidebar-drawer {
+    --drawer-width: min(300px, 84dvw);
+    --drawer-backdrop: 0;
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+  }
+
+  .sidebar-drawer.is-open {
+    display: block;
+  }
+
+  .drawer-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgb(22 12 40);
+    opacity: calc(var(--drawer-backdrop) * 0.46);
+    pointer-events: none;
+  }
+
+  .sidebar-scroller {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: var(--drawer-width) 100%;
+    grid-template-rows: 100%;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    overscroll-behavior: none;
+    scrollbar-width: none;
+    scroll-snap-type: x mandatory;
+  }
+
+  .sidebar-scroller::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .sidebar-scroller {
+      scroll-behavior: smooth;
+    }
+  }
+
+  .sidebar-scroller::after {
+    content: '';
+    display: block;
+    width: 100%;
+    height: 100%;
+    scroll-snap-align: end;
+    scroll-initial-target: nearest;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    .sidebar-drawer {
+      timeline-scope: --drawer-fade;
+      animation: fade-drawer-backdrop linear both;
+      animation-timeline: --drawer-fade;
+    }
+
+    .sidebar-scroller {
+      scroll-timeline: --drawer-fade x;
+    }
+  }
+
+  .sidebar {
+    width: 100%;
+    height: 100%;
+    min-height: 100svh;
+    padding:
+      calc(14px + env(safe-area-inset-top, 0px))
+      14px
+      calc(16px + env(safe-area-inset-bottom, 0px))
+      max(14px, env(safe-area-inset-left, 0px));
+    scroll-snap-align: start;
+    box-shadow: 18px 0 44px rgb(18 10 36 / 26%);
+  }
+
+  .sidebar .brand {
+    margin: 0 4px 10px;
+    gap: 8px;
+  }
+
+  .drawer-close {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--hover);
+    color: var(--muted);
+    font-size: 20px;
+  }
+
+  .notebook {
+    height: auto;
+    min-height: 44px;
+    padding-right: 44px;
+    font-size: 14px;
+  }
+
+  .notebook-delete {
+    width: 34px;
+    height: 34px;
+    top: 5px;
+    right: 5px;
+    opacity: 0.75;
+  }
+
+  .new-notebook {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .account-avatar {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
+    font-size: 12px;
+  }
+
+  .account-email {
+    font-size: 12.5px;
+  }
+
+  .logout-button {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  .theme-switch {
+    height: 34px;
+    padding: 3px;
+  }
+
+  .theme-switch button {
+    width: 28px;
+  }
+
+  .add-note,
+  .copy-note,
+  .delete-note {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .delete-note {
+    font-size: 16px;
   }
 
   .editor-toolbar,
@@ -677,6 +989,10 @@ dialog::backdrop {
   .save-error {
     padding-right: 28px;
     padding-left: 28px;
+  }
+
+  .note-body {
+    font-size: 16px;
   }
 }
 
@@ -689,11 +1005,192 @@ dialog::backdrop {
   .app-window {
     width: 100%;
     height: 100vh;
+    height: 100dvh;
     border: 0;
     border-radius: 0;
+    box-shadow: none;
   }
 
   .workspace {
-    grid-template-columns: 198px 220px minmax(300px, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace[data-mobile-view='list'] .editor {
+    display: none;
+  }
+
+  .workspace[data-mobile-view='editor'] .notes-panel {
+    display: none;
+  }
+
+  .notes-panel {
+    border-right: 0;
+  }
+
+  .notes-heading {
+    min-height: 68px;
+    padding:
+      calc(14px + env(safe-area-inset-top, 0px))
+      max(16px, env(safe-area-inset-right, 0px))
+      12px
+      max(16px, env(safe-area-inset-left, 0px));
+    border-bottom: 1px solid var(--line);
+  }
+
+  .notes-heading h1 {
+    font-size: 19px;
+    line-height: 24px;
+  }
+
+  .notes-heading p {
+    font-size: 12px;
+  }
+
+  .note-list {
+    padding:
+      12px
+      max(14px, env(safe-area-inset-right, 0px))
+      calc(24px + env(safe-area-inset-bottom, 0px))
+      max(14px, env(safe-area-inset-left, 0px));
+  }
+
+  .note-card {
+    min-height: 80px;
+    padding: 13px 15px;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    background: var(--card);
+    box-shadow: 0 4px 12px rgb(67 38 110 / 5%);
+  }
+
+  .note-card + .note-card {
+    margin-top: 9px;
+  }
+
+  .note-card.selected-note {
+    box-shadow: 0 4px 12px rgb(67 38 110 / 5%);
+  }
+
+  .selected-note::before {
+    display: none;
+  }
+
+  .note-card:active {
+    background: var(--hover);
+  }
+
+  .note-card h2 {
+    font-size: 15px;
+    line-height: 20px;
+  }
+
+  .note-card p {
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .mobile-empty-state {
+    display: flex;
+    flex: 1;
+    padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .empty-action {
+    min-height: 44px;
+    padding: 0 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  .editor-toolbar {
+    min-height: 0;
+    padding:
+      calc(12px + env(safe-area-inset-top, 0px))
+      max(18px, env(safe-area-inset-right, 0px))
+      10px
+      max(18px, env(safe-area-inset-left, 0px));
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "back actions"
+      "meta meta";
+    align-items: center;
+    row-gap: 10px;
+  }
+
+  .mobile-back {
+    grid-area: back;
+    justify-self: start;
+    min-height: 40px;
+    padding: 0 13px 0 11px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--sidebar-bg);
+    color: var(--text);
+    font-size: 13.5px;
+    font-weight: 800;
+  }
+
+  .editor-actions {
+    grid-area: actions;
+  }
+
+  .last-edited {
+    grid-area: meta;
+    padding-left: 2px;
+    font-size: 12px;
+  }
+
+  .save-error {
+    padding:
+      0
+      max(20px, env(safe-area-inset-right, 0px))
+      8px
+      max(20px, env(safe-area-inset-left, 0px));
+  }
+
+  .note-content {
+    padding:
+      6px
+      max(20px, env(safe-area-inset-right, 0px))
+      calc(36px + env(safe-area-inset-bottom, 0px))
+      max(20px, env(safe-area-inset-left, 0px));
+  }
+
+  .note-title {
+    margin-bottom: 14px;
+    font-size: clamp(1.5rem, 1.15rem + 2.2vw, 1.9rem);
+  }
+
+  .note-body {
+    min-height: 40dvh;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  .editor-active .rainbow {
+    width: 250px;
+    height: 220px;
+    right: -105px;
+    bottom: -95px;
+  }
+
+  .toast {
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .notebook-form {
+    padding: 22px 20px;
+  }
+
+  .notebook-dialog-actions button {
+    min-height: 42px;
+    padding: 0 16px;
+    font-size: 13.5px;
   }
 }

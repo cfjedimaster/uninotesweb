@@ -17,6 +17,13 @@ export function getResolvedTheme() {
   return getStoredTheme() ?? getSystemTheme()
 }
 
+export function syncThemeColorMeta(resolvedTheme = getResolvedTheme()) {
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]')
+  if (themeColorMeta) {
+    themeColorMeta.content = resolvedTheme === 'dark' ? '#21183a' : '#f3eaff'
+  }
+}
+
 export function applyThemeState(storedOverride = getStoredTheme()) {
   const meta = document.querySelector('meta[name="color-scheme"]')
   if (meta) {
@@ -27,6 +34,7 @@ export function applyThemeState(storedOverride = getStoredTheme()) {
   } else {
     delete document.documentElement.dataset.theme
   }
+  syncThemeColorMeta(storedOverride ?? getSystemTheme())
 }
 
 export function setThemePreference(targetTheme) {
@@ -53,7 +61,9 @@ export function subscribeThemeChanges(onChange) {
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
   const handleMediaChange = () => {
-    onChange(getResolvedTheme())
+    const resolved = getResolvedTheme()
+    syncThemeColorMeta(resolved)
+    onChange(resolved)
   }
 
   const handleStorage = (event) => {
