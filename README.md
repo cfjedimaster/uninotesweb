@@ -7,6 +7,7 @@ Web port of the TinyJS **Uninote** desktop app, built with **Vite**, **Alpine.js
 - **`/`** — Marketing landing page (auto-redirects to `/notes` when signed in)
 - **`/login`** — Google OAuth sign-in card (auto-redirects to `/notes` when signed in)
 - **`/notes`** — Uninote three-pane workspace (seeds a default `Personal` notebook on first signup and includes a sidebar **Log out** button)
+- **`/admin`** — Password-protected admin overview showing total users, notebooks, notes, and the latest 10 sign-in events
 
 ---
 
@@ -14,7 +15,7 @@ Web port of the TinyJS **Uninote** desktop app, built with **Vite**, **Alpine.js
 
 ### 1. Environment Variables
 
-Copy `.env.example` to `.env` and fill in your Supabase project URL and publishable key:
+Copy `.env.example` to `.env` and fill in your Supabase project URL, publishable key, and server-side admin credentials:
 
 ```bash
 cp .env.example .env
@@ -23,6 +24,8 @@ cp .env.example .env
 ```dotenv
 VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+ADMIN_PASSWORD=your-admin-password
+ADMIN_STATS_TOKEN=your-random-256-bit-hex-token
 ```
 
 ### 2. Database Schema & Row Level Security
@@ -32,6 +35,7 @@ Run [`supabase/schema.sql`](./supabase/schema.sql) in the Supabase SQL Editor to
 - `public.notebooks` and `public.notes` tables + indexes
 - Strict `authenticated` Row Level Security (RLS) policies enforcing `auth.uid() = user_id`
 - An `auth.users` signup trigger (`private.handle_new_user`) that automatically seeds a **`Personal`** notebook for every new user
+- `private.login_events` + `auth.sessions` trigger (`private.record_login_event`) and bcrypt-gated `public.get_admin_stats` RPC for `/admin`
 
 ### 3. Create a Google Cloud OAuth 2.0 Client ID
 

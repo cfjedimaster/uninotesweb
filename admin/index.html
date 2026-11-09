@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      try {
+        const saved = localStorage.getItem('uninote-theme');
+        if (saved === 'light' || saved === 'dark') {
+          document.querySelector('meta[name="color-scheme"]').content = saved;
+          document.documentElement.dataset.theme = saved;
+        }
+      } catch {}
+    </script>
+    <meta name="theme-color" content="#f3eaff" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Admin — Uninote</title>
+  </head>
+  <body>
+    <div class="admin-shell" x-data="adminDashboard" x-cloak x-show="ready">
+      <!-- Password Gate -->
+      <main class="admin-gate-card" x-show="!unlocked">
+        <div class="rainbow" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+
+        <div class="admin-topbar">
+          <a href="/" class="back-link">← Back to home</a>
+          <div class="theme-switch" role="group" aria-label="Theme">
+            <button type="button" class="sun" :class="{ 'selected-theme': theme === 'light' }"
+              :aria-pressed="theme === 'light'" aria-label="Light theme" title="Light theme"
+              @click="setTheme('light')">☼</button>
+            <button type="button" class="moon" :class="{ 'selected-theme': theme === 'dark' }"
+              :aria-pressed="theme === 'dark'" aria-label="Dark theme" title="Dark theme"
+              @click="setTheme('dark')">☾</button>
+          </div>
+        </div>
+
+        <div class="admin-gate-header">
+          <div class="brand">
+            <span class="brand-mark" aria-hidden="true">✦</span>
+            <span>Uninote</span>
+            <span class="admin-pill">Admin</span>
+          </div>
+          <h1>Admin overview</h1>
+          <p>Enter the admin password to view workspace totals and recent sign-in activity.</p>
+        </div>
+
+        <form class="admin-form" method="POST" action="/api/admin-stats" @submit.prevent="unlock">
+          <div class="field-group">
+            <label for="admin-password">Admin password</label>
+            <div class="password-input-row">
+              <input
+                id="admin-password"
+                x-ref="passwordInput"
+                name="password"
+                :type="showPassword ? 'text' : 'password'"
+                autocomplete="current-password"
+                required
+                x-model="password"
+                @input="errorMessage = ''"
+                aria-describedby="admin-password-error"
+              />
+              <button
+                type="button"
+                class="password-toggle"
+                :aria-pressed="showPassword"
+                :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                aria-describedby="toggle-password-warning"
+                @click="showPassword = !showPassword"
+                x-text="showPassword ? 'Hide' : 'Show'"
+              ></button>
+              <span id="toggle-password-warning" class="visually-hidden">
+                Warning: this will display your password on the screen.
+              </span>
+            </div>
+          </div>
+
+          <button type="submit" class="admin-submit" :disabled="loading">
+            <span x-text="loading ? 'Unlocking…' : 'Unlock dashboard'"></span>
+          </button>
+
+          <p id="admin-password-error" class="admin-error" role="alert" aria-live="polite"
+            x-show="errorMessage" x-text="errorMessage"></p>
+        </form>
+      </main>
+
+      <!-- Unlocked Admin Dashboard -->
+      <div class="admin-dashboard" x-show="unlocked">
+        <header class="admin-nav">
+          <div class="admin-brand-group">
+            <a href="/" class="brand">
+              <span class="brand-mark" aria-hidden="true">✦</span>
+              <span>Uninote</span>
+            </a>
+            <span class="admin-pill">Admin</span>
+          </div>
+
+          <div class="admin-nav-actions">
+            <div class="theme-switch" role="group" aria-label="Theme">
+              <button type="button" class="sun" :class="{ 'selected-theme': theme === 'light' }"
+                :aria-pressed="theme === 'light'" aria-label="Light theme" title="Light theme"
+                @click="setTheme('light')">☼</button>
+              <button type="button" class="moon" :class="{ 'selected-theme': theme === 'dark' }"
+                :aria-pressed="theme === 'dark'" aria-label="Dark theme" title="Dark theme"
+                @click="setTheme('dark')">☾</button>
+            </div>
+            <button type="button" class="admin-action-btn" @click="refreshStats" :disabled="loading">
+              <span x-text="loading ? 'Refreshing…' : '↻ Refresh'"></span>
+            </button>
+            <button type="button" class="admin-action-btn lock-btn" @click="lockDashboard">
+              Lock
+            </button>
+          </div>
+        </header>
+
+        <main class="admin-main">
+          <section class="stats-grid" aria-label="Summary totals">
+            <article class="stat-card">
+              <div class="stat-label">
+                <span class="dot pink" aria-hidden="true"></span>
+                <span>Total users</span>
+              </div>
+              <p class="stat-value" x-text="stats.userCount.toLocaleString()"></p>
+            </article>
+
+            <article class="stat-card">
+              <div class="stat-label">
+                <span class="dot purple" aria-hidden="true"></span>
+                <span>Total notebooks</span>
+              </div>
+              <p class="stat-value" x-text="stats.notebookCount.toLocaleString()"></p>
+            </article>
+
+            <article class="stat-card">
+              <div class="stat-label">
+                <span class="dot mint" aria-hidden="true"></span>
+                <span>Total notes</span>
+              </div>
+              <p class="stat-value" x-text="stats.noteCount.toLocaleString()"></p>
+            </article>
+          </section>
+
+          <section class="logins-panel" aria-labelledby="recent-logins-caption">
+            <div class="logins-panel-header">
+              <h2>Recent sign-ins</h2>
+              <span class="logins-subtitle">Latest 10 sign-in events</span>
+            </div>
+
+            <p class="admin-error" role="alert" aria-live="polite" x-show="errorMessage" x-text="errorMessage"></p>
+
+            <template x-if="stats.recentLogins.length > 0">
+              <div tabindex="0" role="region" aria-labelledby="recent-logins-caption" class="table-wrapper">
+                <table class="logins-table">
+                  <caption id="recent-logins-caption" class="visually-hidden">Last 10 logins</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Account</th>
+                      <th scope="col">Signed in</th>
+                      <th scope="col">When</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="entry in stats.recentLogins" :key="entry.id">
+                      <tr>
+                        <th scope="row">
+                          <span class="user-cell">
+                            <span class="user-badge" aria-hidden="true" x-text="initialFor(entry.email)"></span>
+                            <span class="user-email" x-text="entry.email"></span>
+                          </span>
+                        </th>
+                        <td x-text="formatTimestamp(entry.loggedInAt)"></td>
+                        <td>
+                          <span class="relative-pill" x-text="formatRelative(entry.loggedInAt)"></span>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+
+            <template x-if="stats.recentLogins.length === 0">
+              <p class="empty-logins">No sign-in activity recorded yet.</p>
+            </template>
+          </section>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="/src/admin.js"></script>
+  </body>
+</html>
