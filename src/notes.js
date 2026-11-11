@@ -9,6 +9,7 @@ import {
   ensurePersonalNotebookSeeded,
   getNotebooks,
   getNotes,
+  searchNotes,
   updateNote
 } from './lib/db.js'
 import { isSupabaseConfigured, supabase } from './lib/supabase.js'
@@ -50,6 +51,11 @@ Alpine.data('uninote', () => ({
   selectedNotebook: null,
   notes: [],
   selectedNoteId: null,
+  searchQuery: '',
+  isSearching: false,
+  searching: false,
+  searchTimer: null,
+  searchRequestId: 0,
   saveTimer: null,
   savedTimer: null,
   refreshTimer: null,
@@ -71,6 +77,33 @@ Alpine.data('uninote', () => ({
 
   get selectedNote() {
     return this.notes.find(note => note.id === this.selectedNoteId) ?? null
+  },
+
+  get panelHeading() {
+    if (this.isSearching) {
+      return `Search: "${this.searchQuery.trim()}"`
+    }
+    return this.notebooks[this.selectedNotebook]?.name ?? 'Notes'
+  },
+
+  get panelSubheading() {
+    if (this.isSearching) {
+      if (this.searching) return 'Searching across notebooks…'
+      const count = this.notes.length
+      return `${count} matching ${count === 1 ? 'note' : 'notes'} across notebooks`
+    }
+    const count = this.notes.length
+    return `${count} ${count === 1 ? 'note' : 'notes'}`
+  },
+
+  notebookNameFor(notebookId) {
+    return this.notebooks.find(nb => nb.id === notebookId)?.name ?? ''
+  },
+
+  notebookColorFor(notebookId) {
+    const index = this.notebooks.findIndex(nb => nb.id === notebookId)
+    if (index < 0) return 'purple'
+    return ['pink', 'purple', 'blue', 'yellow', 'mint'][index % 5]
   },
 
   get userEmail() {
@@ -297,7 +330,17 @@ Alpine.data('uninote', () => ({
   },
 
   async switchNotebook(index) {
-    if (index === this.selectedNotebook) {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer)
+      this.searchTimer = null
+    }
+    this.searchRequestId++
+    const wasSearching = this.isSearching
+    this.searchQuery = ''
+    this.isSearching = false
+    this.searching = false
+
+    if (index === this.selectedNotebook && !wasSearching) {
       if (this.mobileView === 'editor') {
         if (!await this.leaveCurrentNote()) return
         if (!this.selectedNote) {
@@ -322,6 +365,150 @@ Alpine.data('uninote', () => ({
     this.mobileView = 'list'
     this.syncNotebookCount(index)
     this.closeDrawer()
+  },
+
+  onSearchInput() {
+    if (this.searchTimer) clearTimeout(this.searchTimer)
+    const trimmed = this.searchQuery.trim()
+    if (!trimmed) {
+      this.searchTimer = null
+      void this.clearSearch()
+      return
+    }
+    this.isSearching = true
+    this.searching = true
+    this.searchTimer = setTimeout(() => {
+      this.searchTimer = null
+      void this.runSearch(trimmed)
+    }, 240)
+  },
+
+  handleSearchEnter(event) {
+    if (event.isComposing || event.keyCode === 229) return
+    event.preventDefault()
+    void this.submitSearch()
+  },
+
+  handleSearchEscape(event) {
+    if (this.searchQuery.trim() || this.isSearching) {
+      event.preventDefault()
+      event.stopPropagation()
+      void this.clearSearch({ focusInput: true })
+    }
+  },
+
+  async submitSearch() {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer)
+      this.searchTimer = null
+    }
+    const trimmed = this.searchQuery.trim()
+    if (!trimmed) {
+      await this.clearSearch()
+      return
+    }
+    await this.runSearch(trimmed)
+    if (this.isCompactLayout) {
+      this.closeDrawer()
+    }
+  },
+
+  async runSearch(rawQuery) {
+    const trimmed = typeof rawQuery === 'string' ? rawQuery.trim() : this.searchQuery.trim()
+    if (!trimmed) {
+      await this.clearSearch()
+      return
+    }
+    const requestId = ++this.searchRequestId
+    this.isSearching = true
+    this.searching = true
+    if (!await this.leaveCurrentNote()) {
+      this.searching = false
+      return
+    }
+    try {
+      const results = await searchNotes(trimmed)
+      if (requestId !== this.searchRequestId) return
+      results.forEach(note => {
+        note._savedTitle = note.title
+        note._savedContent = note.content
+        note._new = false
+        note._createdInSession = false
+      })
+      this.notes = results
+      this.filterPendingDelete()
+      this.selectedNoteId = this.notes[0]?.id ?? null
+      this.mobileView = 'list'
+      this.saveError = ''
+    } catch (error) {
+      if (requestId !== this.searchRequestId) return
+      console.error('Unable to search notes:', error)
+      this.saveError = 'Unable to search notes right now. Please try again.'
+    } finally {
+      if (requestId === this.searchRequestId) {
+        this.searching = false
+      }
+    }
+  },
+
+  async clearSearch({ focusInput = false } = {}) {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer)
+      this.searchTimer = null
+    }
+    this.searchRequestId++
+    const wasSearching = this.isSearching
+    const activeNote = this.selectedNote
+    const preservedNoteId = activeNote?.id ?? null
+    const preservedNotebookId = activeNote?.notebookId ?? null
+
+    if (wasSearching && !await this.leaveCurrentNote()) {
+      return
+    }
+
+    this.searchQuery = ''
+    this.isSearching = false
+    this.searching = false
+
+    if (wasSearching) {
+      let targetIndex = this.selectedNotebook
+      if (preservedNotebookId) {
+        const matchedIndex = this.notebooks.findIndex(nb => nb.id === preservedNotebookId)
+        if (matchedIndex >= 0) {
+          targetIndex = matchedIndex
+        }
+      }
+      if ((targetIndex === null || !this.notebooks[targetIndex]) && this.notebooks.length) {
+        targetIndex = 0
+      }
+
+      if (targetIndex !== null && this.notebooks[targetIndex]) {
+        this.selectedNotebook = targetIndex
+        this.notes = await getNotes(this.notebooks[targetIndex].id)
+        this.notes.forEach(note => {
+          note._savedTitle = note.title
+          note._savedContent = note.content
+          note._new = false
+          note._createdInSession = false
+        })
+        this.filterPendingDelete()
+        const stillExists = preservedNoteId && this.notes.some(note => note.id === preservedNoteId)
+        this.selectedNoteId = stillExists ? preservedNoteId : (this.notes[0]?.id ?? null)
+        if (!stillExists) {
+          this.mobileView = 'list'
+        }
+        this.syncNotebookCount(targetIndex)
+      } else {
+        this.selectedNotebook = null
+        this.notes = []
+        this.selectedNoteId = null
+        this.mobileView = 'list'
+      }
+    }
+
+    if (focusInput) {
+      this.$nextTick(() => this.$refs.searchInput?.focus())
+    }
   },
 
   async selectNote(note, { openEditor = false } = {}) {
@@ -370,6 +557,7 @@ Alpine.data('uninote', () => ({
         return false
       }
       this.notes = this.notes.filter(item => item.id !== note.id)
+      this.adjustNotebookCountById(note.notebookId, -1)
       this.syncNotebookCount(this.selectedNotebook)
     } else {
       note._createdInSession = false
@@ -378,14 +566,21 @@ Alpine.data('uninote', () => ({
   },
 
   createNote() {
-    if (this.selectedNotebook === null) return
+    if (this.selectedNotebook === null && !this.notebooks.length) return
     void this.startNewNote()
   },
 
   async startNewNote() {
     if (!await this.leaveCurrentNote()) return
+    if (this.isSearching) {
+      const targetIndex = this.selectedNotebook ?? 0
+      await this.switchNotebook(targetIndex)
+    }
+    const targetNotebook = this.notebooks[this.selectedNotebook]
+    if (!targetNotebook) return
     const note = {
       id: `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      notebookId: targetNotebook.id,
       title: '',
       content: '',
       updatedAt: new Date().toISOString(),
@@ -565,9 +760,14 @@ Alpine.data('uninote', () => ({
     this.pendingDelete = {
       note,
       index,
-      notebookId: this.notebooks[this.selectedNotebook].id
+      notebookId: note.notebookId ?? this.notebooks[this.selectedNotebook]?.id,
+      fromSearch: this.isSearching
     }
-    this.syncNotebookCount(this.selectedNotebook)
+    if (this.isSearching) {
+      this.adjustNotebookCountById(this.pendingDelete.notebookId, -1)
+    } else {
+      this.syncNotebookCount(this.selectedNotebook)
+    }
     this.toastVisible = true
     this.deleteTimer = setTimeout(() => {
       void this.commitPendingDelete()
@@ -586,13 +786,19 @@ Alpine.data('uninote', () => ({
     } catch (error) {
       console.error('Unable to delete note:', error)
       this.saveError = 'Unable to delete this note. It has been restored.'
-      if (
+      if (this.isSearching) {
+        this.adjustNotebookCountById(pending.notebookId, 1)
+        this.notes.splice(Math.min(pending.index, this.notes.length), 0, pending.note)
+        this.selectedNoteId = pending.note.id
+      } else if (
         this.notebooks.some(notebook => notebook.id === pending.notebookId) &&
         this.notebooks[this.selectedNotebook]?.id === pending.notebookId
       ) {
         this.notes.splice(Math.min(pending.index, this.notes.length), 0, pending.note)
         this.selectedNoteId = pending.note.id
         this.syncNotebookCount(this.selectedNotebook)
+      } else {
+        this.adjustNotebookCountById(pending.notebookId, 1)
       }
     }
   },
@@ -604,20 +810,35 @@ Alpine.data('uninote', () => ({
     this.deleteTimer = null
     this.pendingDelete = null
     this.toastVisible = false
-    if (this.notebooks[this.selectedNotebook]?.id === notebookId) {
+    if (this.isSearching) {
+      this.adjustNotebookCountById(notebookId, 1)
+      this.notes.splice(Math.min(index, this.notes.length), 0, note)
+      this.selectedNoteId = note.id
+    } else if (this.notebooks[this.selectedNotebook]?.id === notebookId) {
       this.notes.splice(Math.min(index, this.notes.length), 0, note)
       this.selectedNoteId = note.id
       this.syncNotebookCount(this.selectedNotebook)
+    } else {
+      this.adjustNotebookCountById(notebookId, 1)
     }
   },
 
   filterPendingDelete() {
-    if (!this.pendingDelete || this.pendingDelete.notebookId !== this.notebooks[this.selectedNotebook]?.id) return
+    if (!this.pendingDelete) return
+    if (!this.isSearching && this.pendingDelete.notebookId !== this.notebooks[this.selectedNotebook]?.id) return
     this.notes = this.notes.filter(note => note.id !== this.pendingDelete.note.id)
   },
 
+  adjustNotebookCountById(notebookId, delta) {
+    if (!notebookId) return
+    const notebook = this.notebooks.find(nb => nb.id === notebookId)
+    if (notebook) {
+      notebook.noteCount = Math.max(0, (notebook.noteCount ?? 0) + delta)
+    }
+  },
+
   syncNotebookCount(index) {
-    if (index === null || !this.notebooks[index]) return
+    if (this.isSearching || index === null || !this.notebooks[index]) return
     this.notebooks[index].noteCount = this.notes.length
   },
 
@@ -670,7 +891,7 @@ Alpine.data('uninote', () => ({
     const notebook = this.notebooks[index]
     if (!notebook) return
     try {
-      if (this.selectedNotebook === index && !await this.leaveCurrentNote()) return
+      if ((this.selectedNotebook === index || this.selectedNote?.notebookId === notebook.id) && !await this.leaveCurrentNote()) return
       await deleteNotebook({ id: notebook.id })
       if (this.pendingDelete?.notebookId === notebook.id) {
         if (this.deleteTimer) clearTimeout(this.deleteTimer)
@@ -680,7 +901,17 @@ Alpine.data('uninote', () => ({
       }
       this.notebooks.splice(index, 1)
       this.$refs.deleteNotebookDialog.close()
-      if (this.selectedNotebook === index) {
+      if (this.isSearching) {
+        this.notes = this.notes.filter(note => note.notebookId !== notebook.id)
+        if (!this.notes.some(note => note.id === this.selectedNoteId)) {
+          this.selectedNoteId = this.notes[0]?.id ?? null
+        }
+        if (this.selectedNotebook === index) {
+          this.selectedNotebook = this.notebooks.length ? Math.min(index, this.notebooks.length - 1) : null
+        } else if (this.selectedNotebook > index) {
+          this.selectedNotebook--
+        }
+      } else if (this.selectedNotebook === index) {
         this.selectedNotebook = null
         this.notes = []
         this.selectedNoteId = null
@@ -697,6 +928,16 @@ Alpine.data('uninote', () => ({
     }
   },
 
+  async focusSearchInput() {
+    if (this.isCompactLayout && !this.drawerVisible) {
+      await this.openDrawer()
+    }
+    this.$nextTick(() => {
+      this.$refs.searchInput?.focus()
+      this.$refs.searchInput?.select()
+    })
+  },
+
   handleGlobalKeydown(event) {
     if (event.key === 'Escape') {
       const anyModalOpen = this.$refs.newNotebookDialog?.open || this.$refs.deleteNotebookDialog?.open
@@ -704,6 +945,11 @@ Alpine.data('uninote', () => ({
         event.preventDefault()
         this.closeDrawer()
       }
+      return
+    }
+    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'k') {
+      event.preventDefault()
+      void this.focusSearchInput()
       return
     }
     if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'n') return

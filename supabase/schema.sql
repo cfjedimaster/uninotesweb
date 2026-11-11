@@ -19,10 +19,14 @@ create table if not exists public.notes (
   title text not null default '',
   content text not null default '',
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  fts tsvector generated always as (
+    setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(content, '')), 'B')
+  ) stored
 );
 
--- 3. Indexes covering all foreign keys and common sort orders
+-- 3. Indexes covering all foreign keys, common sort orders, and full-text search
 create index if not exists notebooks_user_id_created_at_idx
   on public.notebooks (user_id, created_at);
 
@@ -31,6 +35,9 @@ create index if not exists notes_user_id_idx
 
 create index if not exists notes_notebook_id_updated_at_idx
   on public.notes (notebook_id, updated_at desc);
+
+create index if not exists notes_fts_idx
+  on public.notes using gin (fts);
 
 -- 4. Maintain updated_at automatically on note edits
 create or replace function private.set_updated_at()

@@ -74,6 +74,75 @@ body {
   margin-left: auto;
 }
 
+.sidebar-search {
+  display: block;
+  margin: 2px 3px 10px;
+}
+
+.sidebar-search-form {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-search-icon {
+  position: absolute;
+  left: 11px;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.sidebar-search-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 30px 0 32px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--text);
+  background: var(--card);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.sidebar-search-input::placeholder {
+  color: var(--muted);
+  opacity: 0.78;
+}
+
+.sidebar-search-input::-webkit-search-cancel-button,
+.sidebar-search-input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.sidebar-search-input:focus-visible {
+  outline: 2px solid #9e66f3;
+  outline-offset: 1px;
+}
+
+.sidebar-search-clear {
+  position: absolute;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+}
+
+.search-dot {
+  background: linear-gradient(135deg, #f47abd, #768aff);
+}
+
+.search-clear-row {
+  opacity: 0.85;
+}
+
 .sidebar-heading {
   margin: 3px 9px 7px;
   color: var(--muted);
@@ -399,6 +468,31 @@ dialog::backdrop {
   line-height: 16px;
 }
 
+.notes-heading-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clear-search-button {
+  height: 33px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--text);
+  background: var(--sidebar-bg);
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.clear-search-button:hover {
+  background: var(--hover);
+  color: #966deb;
+  filter: none;
+}
+
 .add-note {
   width: 33px;
   height: 33px;
@@ -465,12 +559,49 @@ dialog::backdrop {
   background: linear-gradient(#f47abd, #9e80ff, #55b8ff);
 }
 
+.note-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .note-card h2 {
+  min-width: 0;
+  flex: 1;
   margin: 0;
   overflow: hidden;
   font-size: 13px;
   line-height: 17px;
   font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-notebook-badge {
+  flex-shrink: 0;
+  max-width: 112px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  background: var(--hover);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.note-notebook-badge .dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  box-shadow: none;
+}
+
+.note-notebook-badge span:last-child {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -733,6 +864,24 @@ dialog::backdrop {
 }
 
 @media (hover: none), (pointer: coarse) {
+  .sidebar-search-input {
+    min-height: 44px;
+    padding: 0 38px 0 36px;
+    font-size: 16px;
+  }
+
+  .sidebar-search-icon {
+    left: 13px;
+    width: 15px;
+    height: 15px;
+  }
+
+  .sidebar-search-clear {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+
   .notebook {
     height: auto;
     min-height: 44px;
@@ -774,6 +923,13 @@ dialog::backdrop {
     width: 40px;
     height: 40px;
     border-radius: 12px;
+  }
+
+  .clear-search-button {
+    min-height: 40px;
+    padding: 0 13px;
+    border-radius: 12px;
+    font-size: 12.5px;
   }
 
   .delete-note {
@@ -914,6 +1070,28 @@ dialog::backdrop {
     gap: 8px;
   }
 
+  .sidebar-search {
+    margin: 2px 2px 12px;
+  }
+
+  .sidebar-search-input {
+    min-height: 44px;
+    padding: 0 38px 0 36px;
+    font-size: 16px;
+  }
+
+  .sidebar-search-icon {
+    left: 13px;
+    width: 15px;
+    height: 15px;
+  }
+
+  .sidebar-search-clear {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+
   .drawer-close {
     width: 34px;
     height: 34px;
@@ -978,6 +1156,13 @@ dialog::backdrop {
     width: 40px;
     height: 40px;
     border-radius: 12px;
+  }
+
+  .clear-search-button {
+    min-height: 40px;
+    padding: 0 13px;
+    border-radius: 12px;
+    font-size: 12.5px;
   }
 
   .delete-note {

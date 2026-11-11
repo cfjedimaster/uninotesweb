@@ -44,15 +44,48 @@
                   title="Close notebooks" @click="closeDrawer">×</button>
               </div>
 
+              <search class="sidebar-search">
+                <form class="sidebar-search-form" role="search" @submit.prevent="submitSearch">
+                  <label for="sidebar-search-input" class="visually-hidden">Search all notes</label>
+                  <svg class="sidebar-search-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-3.5-3.5"></path>
+                  </svg>
+                  <input id="sidebar-search-input" x-ref="searchInput" class="sidebar-search-input"
+                    type="search" name="q" placeholder="Search all notes…"
+                    autocorrect="off" autocapitalize="none" spellcheck="false" enterkeyhint="search"
+                    x-model="searchQuery"
+                    @input="onSearchInput"
+                    @keydown.enter="handleSearchEnter($event)"
+                    @keydown.escape="handleSearchEscape($event)">
+                  <button type="button" class="sidebar-search-clear icon-button"
+                    x-show="searchQuery.trim().length > 0"
+                    aria-label="Clear search" title="Clear search"
+                    @click="clearSearch({ focusInput: true })">×</button>
+                </form>
+              </search>
+
               <div class="sidebar-heading">
                 <span>Notebooks</span>
               </div>
 
               <nav class="notebook-list" aria-label="Notebooks">
+                <div class="notebook-row" x-show="isSearching">
+                  <button type="button" class="notebook selected search-results-item" aria-pressed="true"
+                    @click="closeDrawer">
+                    <span class="dot search-dot" aria-hidden="true"></span>
+                    <span class="notebook-name">Search results</span>
+                    <span class="count" x-text="searching ? '…' : notes.length"></span>
+                  </button>
+                  <button type="button" class="notebook-delete search-clear-row icon-button"
+                    aria-label="Exit search results" title="Exit search results"
+                    @click="clearSearch()">×</button>
+                </div>
                 <template x-for="(notebook, index) in notebooks" :key="notebook.id">
                   <div class="notebook-row">
-                    <button type="button" class="notebook" :class="{ selected: index === selectedNotebook }"
-                      :aria-pressed="index === selectedNotebook" @click="switchNotebook(index)">
+                    <button type="button" class="notebook" :class="{ selected: !isSearching && index === selectedNotebook }"
+                      :aria-pressed="!isSearching && index === selectedNotebook" @click="switchNotebook(index)">
                       <span class="dot" :class="['pink', 'purple', 'blue', 'yellow', 'mint'][index % 5]"></span>
                       <span class="notebook-name" x-text="notebook.name"></span>
                       <span class="count" x-text="notebook.noteCount"></span>
@@ -96,12 +129,17 @@
                 </svg>
               </button>
               <div class="notes-heading-text">
-                <h1 x-text="notebooks[selectedNotebook]?.name ?? 'Notes'"></h1>
-                <p x-text="notes.length + (notes.length === 1 ? ' note' : ' notes')"></p>
+                <h1 x-text="panelHeading"></h1>
+                <p role="status" aria-live="polite" x-text="panelSubheading"></p>
               </div>
             </div>
-            <button type="button" class="add-note" aria-label="New note" title="New note"
-              @click="createNote" :disabled="selectedNotebook === null">+</button>
+            <div class="notes-heading-actions">
+              <button type="button" class="clear-search-button" x-show="isSearching"
+                @click="clearSearch()">Clear search</button>
+              <button type="button" class="add-note" aria-label="New note" title="New note"
+                x-show="!isSearching"
+                @click="createNote" :disabled="selectedNotebook === null">+</button>
+            </div>
           </div>
 
           <div class="note-list" role="listbox" aria-label="Notes" tabindex="0"
@@ -112,21 +150,30 @@
                 :class="{ 'selected-note': note.id === selectedNoteId }" tabindex="0"
                 @click="selectNote(note, { openEditor: true })"
                 @keydown.enter.prevent="selectNote(note, { openEditor: true })">
-                <h2 :class="{ 'untitled-note': !note.title.trim() }"
-                  x-text="note.title.trim() || 'Untitled note'"></h2>
+                <div class="note-card-header">
+                  <h2 :class="{ 'untitled-note': !note.title.trim() }"
+                    x-text="note.title.trim() || 'Untitled note'"></h2>
+                  <span class="note-notebook-badge" x-show="isSearching && notebookNameFor(note.notebookId)">
+                    <span class="dot" :class="notebookColorFor(note.notebookId)" aria-hidden="true"></span>
+                    <span x-text="notebookNameFor(note.notebookId)"></span>
+                  </span>
+                </div>
                 <p x-text="note.content"></p>
               </article>
             </template>
           </div>
 
           <div class="empty-state mobile-empty-state" x-show="notes.length === 0">
-            <span class="empty-unicorn" aria-hidden="true">🦄</span>
-            <h2 x-text="selectedNotebook === null ? 'No notebook selected' : 'No notes yet'"></h2>
-            <p x-show="selectedNotebook !== null">Start with a little sparkle.</p>
-            <p x-show="selectedNotebook === null">Create a notebook to start jotting things down.</p>
-            <button type="button" class="empty-action" x-show="selectedNotebook !== null"
+            <span class="empty-unicorn" aria-hidden="true" x-text="isSearching ? '🔍' : '🦄'"></span>
+            <h2 x-text="isSearching ? (searching ? 'Searching notes…' : 'No matching notes') : (selectedNotebook === null ? 'No notebook selected' : 'No notes yet')"></h2>
+            <p x-show="isSearching && !searching">Try a different keyword or phrase.</p>
+            <p x-show="!isSearching && selectedNotebook !== null">Start with a little sparkle.</p>
+            <p x-show="!isSearching && selectedNotebook === null">Create a notebook to start jotting things down.</p>
+            <button type="button" class="empty-action" x-show="isSearching && !searching"
+              @click="clearSearch()">Clear search</button>
+            <button type="button" class="empty-action" x-show="!isSearching && selectedNotebook !== null"
               @click="createNote">Write your first note</button>
-            <button type="button" class="empty-action" x-show="selectedNotebook === null"
+            <button type="button" class="empty-action" x-show="!isSearching && selectedNotebook === null"
               @click="openNewNotebookModal">Create a notebook</button>
           </div>
         </section>
@@ -178,13 +225,16 @@
           </template>
           <template x-if="!selectedNote">
             <div class="empty-state">
-              <span class="empty-unicorn" aria-hidden="true">🦄</span>
-              <h2 x-text="selectedNotebook === null ? 'No notebook selected' : 'No notes yet'"></h2>
-              <p x-show="selectedNotebook !== null">Start with a little sparkle.</p>
-              <p x-show="selectedNotebook === null">Create a notebook to start jotting things down.</p>
-              <button type="button" class="empty-action" x-show="selectedNotebook !== null"
+              <span class="empty-unicorn" aria-hidden="true" x-text="isSearching ? '🔍' : '🦄'"></span>
+              <h2 x-text="isSearching ? (searching ? 'Searching notes…' : 'No matching notes') : (selectedNotebook === null ? 'No notebook selected' : 'No notes yet')"></h2>
+              <p x-show="isSearching && !searching">Try a different keyword or phrase.</p>
+              <p x-show="!isSearching && selectedNotebook !== null">Start with a little sparkle.</p>
+              <p x-show="!isSearching && selectedNotebook === null">Create a notebook to start jotting things down.</p>
+              <button type="button" class="empty-action" x-show="isSearching && !searching"
+                @click="clearSearch()">Clear search</button>
+              <button type="button" class="empty-action" x-show="!isSearching && selectedNotebook !== null"
                 @click="createNote">Write your first note</button>
-              <button type="button" class="empty-action" x-show="selectedNotebook === null"
+              <button type="button" class="empty-action" x-show="!isSearching && selectedNotebook === null"
                 @click="openNewNotebookModal">Create a notebook</button>
             </div>
           </template>

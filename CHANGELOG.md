@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2026-11-11]
+
+### Added
+- **Full-text note search across all notebooks**:
+  - Added a stored generated `tsvector` column (`fts`) and `GIN` index (`notes_fts_idx`) on `public.notes` weighting note titles (`A`) and note content (`B`), queried via `websearch` full-text search.
+  - Added a global search input at the top of the Notebooks sidebar (`⌘K` / `Ctrl+K` shortcut focus) with a temporary **Search results** navigation row and color-coded notebook badges on matching note cards.
+  - Added a persistent **Clear search** button in the notes list header (replacing the `+` button while searching) that restores the active note's notebook and keeps the selected note open in the editor when clearing.
+
 ## [2026-11-09]
 
 ### Added

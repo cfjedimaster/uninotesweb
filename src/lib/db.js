@@ -56,7 +56,7 @@ export async function getNotes(notebookId) {
   const client = requireClient()
   const { data, error } = await client
     .from('notes')
-    .select('id, title, content, created_at, updated_at')
+    .select('id, notebook_id, title, content, created_at, updated_at')
     .eq('notebook_id', notebookId)
     .order('updated_at', { ascending: false })
     .order('id', { ascending: false })
@@ -65,6 +65,31 @@ export async function getNotes(notebookId) {
 
   return (data ?? []).map(row => ({
     id: row.id,
+    notebookId: row.notebook_id,
+    title: row.title ?? '',
+    content: row.content ?? '',
+    created: row.created_at,
+    updatedAt: row.updated_at
+  }))
+}
+
+export async function searchNotes(query) {
+  const client = requireClient()
+  const trimmed = typeof query === 'string' ? query.trim() : ''
+  if (!trimmed) return []
+
+  const { data, error } = await client
+    .from('notes')
+    .select('id, notebook_id, title, content, created_at, updated_at')
+    .textSearch('fts', trimmed, { type: 'websearch', config: 'english' })
+    .order('updated_at', { ascending: false })
+    .order('id', { ascending: false })
+
+  if (error) throw error
+
+  return (data ?? []).map(row => ({
+    id: row.id,
+    notebookId: row.notebook_id,
     title: row.title ?? '',
     content: row.content ?? '',
     created: row.created_at,
